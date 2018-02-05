@@ -40,6 +40,22 @@ int num_clients = 0;
 int master_socket;
 int current_id = 0;
 
+void handleMessage(char message[1025], CLIENT *client){
+    int i;
+
+    for (i = 0; i < MAX_CLIENTS; i++){
+        if (clients[i] != NULL and clients[i]->sockfd != 0)
+        {
+            if (send(clients[i]->sockfd, message, strlen(message), 0) == 0)
+            {
+                cout << "Error sending message to a fat client\n";
+                exit(1);
+            }
+        }
+    }
+}
+
+
 void waitForClient(){
     int max_sd;
     int i;
@@ -92,7 +108,20 @@ void waitForClient(){
     {          
         if (clients[i] != NULL and FD_ISSET(clients[i]->sockfd, &fds))
         {
-
+            char inc_message[1025];
+            inc_message[1024] = 0;
+            int rc;
+            if ((rc = read(clients[i]->sockfd, inc_message, 1024)) == 0)        //Client has a fat cock and disconnected.
+            {
+                cout << "Client disconnected: " << clients[i]->id << endl;
+                close(clients[i]->sockfd);
+                clients[i] = NULL;                      //Think this is a memory leak. idgaf lmao
+                num_clients--;
+            } else                      //Client has a fat message for us.
+            {
+                inc_message[rc] = 0;
+                handleMessage(inc_message, clients[i]);
+            }
         }
     } 
 

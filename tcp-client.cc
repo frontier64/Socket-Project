@@ -20,26 +20,26 @@
 void
 DieWithError(const char *errorMessage) /* External error handling function */
 {
-        perror(errorMessage);
-        exit(1);
+    perror(errorMessage);
+    exit(1);
 }
 
 void
 str_cli(FILE *fp, int sockfd)
 {
 	ssize_t n;
-        char    sendline[ECHOMAX], recvline[ECHOMAX];
+    char    sendline[ECHOMAX], recvline[ECHOMAX];
 
-        while (fgets(sendline, ECHOMAX, fp) != NULL) {
+    while (fgets(sendline, ECHOMAX, fp) != NULL) {
 
-                write(sockfd, sendline, strlen(sendline));
+        write(sockfd, sendline, strlen(sendline));
 
-                if ( (n = read(sockfd, recvline, ECHOMAX)) == 0)
-                        DieWithError("str_cli: server terminated prematurely");
+        if ( (n = read(sockfd, recvline, ECHOMAX)) == 0)
+            DieWithError("str_cli: server terminated prematurely");
 
-		recvline[ n ] = '\0';
-                fputs(recvline, stdout);
-        }
+        recvline[n] = '\0';
+        fputs(recvline, stdout);
+    }
 }
 
 int

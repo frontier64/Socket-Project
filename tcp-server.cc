@@ -6,6 +6,9 @@
  * Date: 2/5/2018
  **/
 
+/*
+TODO: implement message relaying between multiple clients.
+*/
 
 #include	<sys/socket.h> 	/* for socket() and bind() */
 #include	<stdio.h>		/* printf() and fprintf() */
@@ -14,9 +17,86 @@
 #include	<sys/types.h>
 #include	<string.h>
 #include	<unistd.h>
+#include    <iostream>
 
+using namespace std;
+
+#define MAX_CLIENTS 30
 #define	ECHOMAX	255		/* Longest string to echo */
 #define BACKLOG	128
+
+typedef struct {
+    int id;
+    int sockfd;
+} CLIENT;
+
+typedef struct {
+    CLIENT *client;
+    CLIENT *next;
+} CLIENT_LIST;
+
+CLIENT* clients[MAX_CLIENTS];
+int num_clients = 0;
+int master_socket;
+int current_id = 0;
+
+void waitForClient(){
+    int max_sd;
+    int i;
+    fd_set fds;
+    FD_ZERO(&fds);
+
+    FD_SET(master_socket, &fds);
+    max_sd = master_socket;
+    for (i = 0; i < num_clients; i++)
+    {
+        FD_SET(clients[i]->sockfd, &fds);
+        if (clients[i]->sockfd > max_sd)
+        {
+            max_sd = clients[i]->sockfd;
+        }
+    }
+
+    int rc;
+    rc = select(max_sd + 1, &fds, NULL, NULL, NULL);            //Wait for one socket to actually have something to do
+    if (rc < 0){
+        cout << "Error at client interaction\n";
+        exit(1);
+    }
+
+    if (FD_ISSET(master_socket, &fds)){         //If there is a new connection coming on the master socket.
+        struct sockaddr_in clientAddr;
+        unsigned int clientAddrLen;
+        int new_socket;
+        if ((new_socket = accept(master_socket, (struct sockaddr *) &clientAddr, &clientAddrLen)) < 0)
+        {
+            cout << "Error connecting to new client\n";
+            exit(1);
+        }
+        for (i = 0; i < MAX_CLIENTS; i++)
+        {
+            if (clients[i] == NULL)
+            {
+                CLIENT *new_client = new CLIENT;
+                new_client->id = current_id++;
+                new_client->sockfd = new_socket;
+                clients[i] = new_client;
+                break;
+            }
+        }
+        num_clients++;
+        cout << "New client id: " << clients[i]->id << endl;
+    }
+
+    for (i = 0; i < MAX_CLIENTS; i++)           //If there is some interaction from a client.
+    {          
+        if (clients[i] != NULL and FD_ISSET(clients[i]->sockfd, &fds))
+        {
+
+        }
+    } 
+
+}
 
 void 
 DieWithError(const char *errorMessage) /* External error handling function */
@@ -35,9 +115,6 @@ EchoString(int sockfd)
 	    if ( (n = read(sockfd, line, ECHOMAX)) == 0 )
    	    	return; /* connection closed by other end */
 
-        for (i = 0; i < ECHOMAX && line[i+1] != 0 && line[i] != 0; i++){
-            line[i] = line[i] + 1;
-        }
         write(sockfd, line, n );
         fputs(line, stdout);
     }
@@ -80,8 +157,20 @@ main(int argc, char **argv)
 		DieWithError("server: listen() failed");
 
 	cliAddrLen = sizeof(echoClntAddr);
-	connfd = accept( sock, (struct sockaddr *) &echoClntAddr, &cliAddrLen );
+    
+    master_socket = sock;
 
-	EchoString(connfd);
+    cout << "Waiting for connection\n";
+    int i;
+    for (i = 0; i < MAX_CLIENTS; i++){
+        clients[i] = NULL;
+    }
+    while (true)
+    {
+        waitForClient();
+    }
+	//connfd = accept( sock, (struct sockaddr *) &echoClntAddr, &cliAddrLen );
+
+    cout << "Got connection\n";
 	close(connfd);
 }

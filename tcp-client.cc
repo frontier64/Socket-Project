@@ -20,6 +20,25 @@
 
 using namespace std;
 
+typedef struct SERVER_MESSAGE {
+    int message_len;
+    char header;
+    char[1018] data;
+
+} server_message;
+
+typedef struct MINER_MESSAGE {
+    
+}
+
+void handleMessage(char* message){
+    if (strncmp(message, "TEST", 4) == 0){       //if its a test
+        char *rest = message + 4;
+        cout << rest;
+    } else {
+        cout << message;
+    }
+}
 
 int server;
 void waitForServer(){

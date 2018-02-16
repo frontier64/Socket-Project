@@ -22,8 +22,17 @@ TODO: implement message relaying between multiple clients.
 using namespace std;
 
 #define MAX_CLIENTS 30
-#define	ECHOMAX	255		/* Longest string to echo */
+#define	ECHOMAX	1025		/* Longest string to echo */
 #define BACKLOG	128
+
+typedef struct SERVER_MESSAGE {
+    int message_len;
+    char header;
+    char[1018] data;
+
+} server_message;
+
+
 
 typedef struct {
     int id;
@@ -69,6 +78,10 @@ void waitForClient(){
     //Setting client sockets.
     for (i = 0; i < num_clients; i++)
     {
+        if (clients[i] == NULL)
+        {
+            continue;
+        }
         FD_SET(clients[i]->sockfd, &fds);
         if (clients[i]->sockfd > max_sd)
         {
@@ -106,7 +119,6 @@ void waitForClient(){
         num_clients++;
         cout << "New client id: " << clients[i]->id << endl;
     }
-
     for (i = 0; i < MAX_CLIENTS; i++)           //If there is some interaction from a client.
     {   
         if (clients[i] != NULL and FD_ISSET(clients[i]->sockfd, &fds))
@@ -117,7 +129,7 @@ void waitForClient(){
             if ((rc = read(clients[i]->sockfd, inc_message, 1024)) == 0)        //Client has a fat cock and disconnected.
             {
                 cout << "Client disconnected: " << clients[i]->id << endl;
-                close(clients[i]->id);
+                close(clients[i]->sockfd);
                 clients[i] = NULL;                      //Think this is a memory leak. idgaf lmao
                 num_clients--;
             } else                      //Client has a fat message for us.

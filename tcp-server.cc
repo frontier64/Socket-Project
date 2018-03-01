@@ -25,10 +25,13 @@ using namespace std;
 #define	ECHOMAX	1025		/* Longest string to echo */
 #define BACKLOG	128
 
+
+
 typedef struct SERVER_MESSAGE {
     int message_len;
+    int clock_value;
     char header;
-    char[1018] data;
+    char[1014] data;
 
 } server_message;
 

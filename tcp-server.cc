@@ -18,6 +18,8 @@ TODO: implement message relaying between multiple clients.
 #include	<string.h>
 #include	<unistd.h>
 #include    <iostream>
+#include    <fstream>
+#include    <string>
 
 using namespace std;
 
@@ -31,26 +33,110 @@ typedef struct SERVER_MESSAGE {
     int message_len;
     int clock_value;
     char header;
-    char[1014] data;
+    char data[1014];
 
 } server_message;
 
 
 
-typedef struct {
-    int id;
+typedef struct _CLIENT {
+    string username;
     int sockfd;
+    int coins;
+    int id;
+    int port;
+    string ip_address;
+    struct _CLIENT* next;
 } CLIENT;
 
-typedef struct {
-    CLIENT *client;
-    CLIENT *next;
-} CLIENT_LIST;
 
 CLIENT* clients[MAX_CLIENTS];
 int num_clients = 0;
 int master_socket;
 int current_id = 0;
+
+CLIENT* client_list = NULL;
+
+void initialize_server(string file){
+    num_clients = 0;
+    ifstream my_file;
+    my_file.open(file);
+    if (!my_file.is_open()){
+        cout << "closed" << endl;
+        my_file.close();
+    }
+    char line[1024];
+    int clients;
+    my_file >> line;
+    clients = atoi(line);
+    int i;
+    char username[1024];
+    char ip_address[1024];
+    int port_number, coins, id;
+    CLIENT* new_client, *temp;
+    temp = client_list;
+    num_clients = clients;
+    for (i = 0; i < clients; i++){
+        my_file >> username; my_file >> ip_address; my_file >> port_number; my_file >> coins; my_file >> id;
+        new_client = new CLIENT;
+        new_client->username = username;
+        new_client->ip_address = ip_address;
+        new_client->port = port_number;
+        new_client->coins = coins;
+        new_client->id = id;
+        cout << temp << endl;
+        if (temp == NULL){
+            client_list = new_client; 
+            cout << client_list << endl;
+            temp = client_list;
+        } else {
+            while (temp->next != NULL){
+                temp = temp->next;
+            }
+            temp->next = new_client;
+        }
+    }
+    my_file.close();
+}
+
+void save_server(string file_string){
+    ofstream file;
+    file.open(file_string);
+
+    int i;
+    CLIENT *temp;
+    cout << client_list << endl;
+    temp = client_list;
+    file << num_clients << endl;
+    while (temp != NULL){
+        file << temp->username << " ";
+        file << temp->ip_address << " ";
+        file << temp->port << " ";
+        file << temp->coins << " ";
+        file << temp->id << endl;
+        temp = temp->next;
+    }
+    file.close();
+}
+
+void deregister_username(string username){
+    CLIENT *temp = client_list, *temp2;
+    if (temp->username.compare(username) == 0){
+        client_list = NULL;
+        return;
+    }
+
+    while (temp->next != NULL){
+        if (temp->next->username.compare(username) == 0){
+            temp2 = temp->next;
+            temp->next = temp->next->next;
+            free(temp2);
+            num_clients--;
+        }
+    }
+
+}   
+
 
 void handleMessage(char message[1025], CLIENT *client){
     int i;
@@ -113,14 +199,14 @@ void waitForClient(){
             if (clients[i] == NULL)
             {
                 CLIENT *new_client = new CLIENT;
-                new_client->id = current_id++;
+                new_client->username = current_id++;
                 new_client->sockfd = new_socket;
                 clients[i] = new_client;
                 break;
             }
         }
         num_clients++;
-        cout << "New client id: " << clients[i]->id << endl;
+        cout << "New client id: " << clients[i]->username << endl;
     }
     for (i = 0; i < MAX_CLIENTS; i++)           //If there is some interaction from a client.
     {   
@@ -131,7 +217,7 @@ void waitForClient(){
             int rc;
             if ((rc = read(clients[i]->sockfd, inc_message, 1024)) == 0)        //Client has a fat cock and disconnected.
             {
-                cout << "Client disconnected: " << clients[i]->id << endl;
+                cout << "Client disconnected: " << clients[i]->username << endl;
                 close(clients[i]->sockfd);
                 clients[i] = NULL;                      //Think this is a memory leak. idgaf lmao
                 num_clients--;
@@ -170,6 +256,11 @@ EchoString(int sockfd)
 int
 main(int argc, char **argv)
 {
+    string lmao = "file.txt";
+    initialize_server("file.txt");
+    deregister_username("sharon");
+    save_server("new_file.txt");
+    exit(0);
     int sock, connfd;                /* Socket */
     struct sockaddr_in echoServAddr; /* Local address */
     struct sockaddr_in echoClntAddr; /* Client address */

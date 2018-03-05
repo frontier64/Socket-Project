@@ -1,6 +1,6 @@
 /**
  * Title: tcp-client.cpp
- * Author: Kixo
+ * Author: Weir
  * About: Interact with socket server. Send messages and receive messages from other clients.
  * For: CSE 434. Socket Project
  * Date: 2/5/2018
@@ -23,6 +23,8 @@
 
 using namespace std;
 
+int server;
+
 typedef struct _CLIENT {
     string username;
     int sockfd;
@@ -43,7 +45,7 @@ bool connected_already = false;
 
 int current_id = 0;
 
-enum headings {nothing, query, regist, deregist, buy};
+enum headings {nothing, query, regist, deregist, buy, transaction_type};
 
 typedef struct SERVER_MESSAGE {
     int message_len;
@@ -53,14 +55,50 @@ typedef struct SERVER_MESSAGE {
 } server_message;
 
 typedef struct transaction_ {
-    int to_id;
-    int from_id;
+    string to_user;
+    string from_user;
     int amount;
     struct transaction_ *next;
 } transaction;
 
+transaction *transaction_list;
+
 
 string username;
+
+bool is_prime(int n){
+    int i, n_2;
+    n_2 = n / 2;
+    while (i < n_2){
+        if (n % i == 0){
+            return false;
+        }
+    }
+    return true;
+}
+
+void work_transaction(string from, string to, int amount){
+    int random = rand() % 100000;
+    while (!is_prime(random));
+
+    server_message *out_message = new server_message;
+    out_message->header = transaction_type;
+    string s = "";
+    s += from + " " + to + " " + to_string(amount);
+    strcpy(out_message->data, s.c_str());
+    int i;
+    for (i = 0; i < MAX_CLIENTS; i++){
+        if (clients[i] != NULL and clients[i]->sockfd != 0)
+        {
+            cout << "sends 1 message\n";
+            if (send(clients[i]->sockfd, out_message, 1024, 0) == 0)
+            {
+                cout << "Error sending message to a fat client\n";
+                exit(1);
+            }
+        }
+    }
+}
 
 void handleMessage(server_message *message){
     /*if (strncmp(message, "TEST", 4) == 0){       //if its a test
@@ -69,7 +107,6 @@ void handleMessage(server_message *message){
     }*/
 
     if (message->header == query){          //oh boy we gon have to add all the new clients nao what a RUSH.
-        cout << "does htis\n";
         int sockfd;
         struct sockaddr_in servaddr;
         stringstream ss;
@@ -107,62 +144,58 @@ void handleMessage(server_message *message){
                 current = temp;
             }
         }
-        if (num_clients == 0){
-            temp = client_list;
-            char *ip_address;
-            int port;
-            while (temp != NULL){
-                if (username.compare(temp->username) == 0){
-                    temp = temp->next;
-                    continue;
+        temp = client_list;
+        char *ip_address;
+        int port;
+        while (temp != NULL){
+            if (username.compare(temp->username) == 0){
+                temp = temp->next;
+                continue;
+            }
+            int i;
+            bool go = true;
+            for (i = 0; i < MAX_CLIENTS; i++){
+                if (clients[i] == NULL){
+                    break;
+                } else {
+                    if (clients[i]->username.compare(temp->username) == 0){
+                        go = false;
+                    }
                 }
+            }
+            if (go == false){
+                temp = temp->next;
+                break;
+            }
+            port = temp->port;
+            ip_address = (char *)temp->ip_address.c_str();
+
+            sockfd = socket(AF_INET, SOCK_STREAM, 0);
+            bzero(&servaddr, sizeof(servaddr));
+            servaddr.sin_family = AF_INET;
+            servaddr.sin_port = htons(port);
+            inet_pton(AF_INET, ip_address, &servaddr.sin_addr);
+
+            if (connect(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr)) >= 0){
                 int i;
-                bool go = true;
                 for (i = 0; i < MAX_CLIENTS; i++){
                     if (clients[i] == NULL){
-                        break;
-                    } else {
-                        if (clients[i]->username.compare(temp->username) == 0){
-                            go = false;
-                        }
+                        CLIENT *new_struct = new CLIENT;
+                        new_struct->sockfd = sockfd;
+                        new_struct->ip_address = temp->ip_address;
+                        new_struct->username = temp->username;
+                        new_struct->port = temp->port;
+                        new_struct->next = NULL;
+                        new_struct->id = temp->id;
+                        new_struct->coins = temp->coins;
+                        clients[i] = new_struct;
+                        num_clients++;
                     }
                 }
-                if (go == false){
-                    temp = temp->next;
-                    break;
-                }
-                port = temp->port;
-                ip_address = (char *)temp->ip_address.c_str();
-
-                sockfd = socket(AF_INET, SOCK_STREAM, 0);
-                bzero(&servaddr, sizeof(servaddr));
-                servaddr.sin_family = AF_INET;
-                servaddr.sin_port = htons(port);
-                inet_pton(AF_INET, ip_address, &servaddr.sin_addr);
-
-                if (connect(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr)) >= 0){
-                    int i;
-                    for (i = 0; i < MAX_CLIENTS; i++){
-                        if (clients[i] == NULL){
-                            CLIENT *new_struct = new CLIENT;
-                            new_struct->sockfd = sockfd;
-                            new_struct->ip_address = temp->ip_address;
-                            new_struct->username = temp->username;
-                            new_struct->port = temp->port;
-                            new_struct->next = NULL;
-                            new_struct->id = temp->id;
-                            new_struct->coins = temp->coins;
-                            clients[i] = new_struct;
-                            num_clients++;
-                        }
-                    }
-                }
-                
-                temp = temp->next;
-            } 
-        }
-
-
+            }
+            
+            temp = temp->next;
+        } 
     }
     cout << message->data;
 }
@@ -180,6 +213,7 @@ void broadcast_buy(server_message *message){
     ss >> toUser;
     ss >> buffer;
     amount = stoi(buffer);
+    cout << amount << endl;
     int count = 0;
     CLIENT *temp = client_list;
     while (temp != NULL){
@@ -209,13 +243,16 @@ void broadcast_buy(server_message *message){
     for (i = 0; i < MAX_CLIENTS; i++){
         if (clients[i] != NULL and clients[i]->sockfd != 0)
         {
-            if (send(clients[i]->sockfd, out_message, 1024, 0) == 0)
+            //cout << "sends 1 message\n";
+            /*if (send(clients[i]->sockfd, out_message, 1024, 0) == 0)
             {
                 cout << "Error sending message to a fat client\n";
                 exit(1);
-            }
+            }*/
+
         }
     }
+    send(server, (void *)out_message, 1024, 0);
 }
 
 void handleMinerMessage(server_message *message, CLIENT *client){
@@ -224,7 +261,6 @@ void handleMinerMessage(server_message *message, CLIENT *client){
     }
 }
 
-int server;
 void waitForServer(){
     int max_sd;
     int i;
@@ -264,7 +300,7 @@ void waitForServer(){
 
 
     int rc;
-    rc = select(max_sd + 1, &fds, NULL, NULL, NULL);            //Wait for one socket to actually have something to do
+    rc = select(max_sd+1, &fds, NULL, NULL, NULL);            //Wait for one socket to actually have something to do
     if (rc < 0){
         cout << "Error at client interaction\n";
         exit(1);
@@ -316,7 +352,7 @@ void waitForServer(){
             broadcast_buy(message);
             go = false;
         }
-        if (send(server, (void *)message, 1024, 0) == 0 and go == true)
+        if (go == true and send(server, (void *)message, 1024, 0) == 0)
         {
             cout << "idk what this error even is\n";
             close(server);
@@ -336,25 +372,9 @@ void waitForServer(){
         } else {
             cout << "connected to the new client\n";
         }
-        CLIENT *temp;
-        int port;
-        char *ip_address_new;
-        if (clientAddr.sin_family == AF_INET) {
-            struct sockaddr_in *s = (struct sockaddr_in *)&clientAddr;
-            port = ntohs(s->sin_port);
-            inet_ntop(AF_INET, &s->sin_addr, ip_address_new, sizeof ip_address_new);
-        }
-        string username;
-        bool accept = false;
-        while (temp != NULL){
-            if (port == temp->port and temp->ip_address.compare(ip_address_new) == 0){
-                accept = true;
-                username = temp->username;
-            }
-        }
         for (i = 0; i < MAX_CLIENTS; i++)
         {
-            if (clients[i] == NULL and accept)
+            if (clients[i] == NULL)
             {   
                 CLIENT *new_client = new CLIENT;
                 new_client->id = current_id++;
@@ -372,6 +392,7 @@ void waitForServer(){
     {   
         if (clients[i] != NULL and FD_ISSET(clients[i]->sockfd, &fds))
         {
+            cout << "interaction from client\n";
             server_message *message = new server_message;
             int rc;
             if ((rc = read(clients[i]->sockfd, message, 1024)) == 0)        //Client has a fat cock and disconnected.
@@ -385,9 +406,9 @@ void waitForServer(){
                 handleMinerMessage(message, clients[i]);
             }
         }
-    } 
-
+    }
 }
+     
 
 
 void
@@ -418,6 +439,10 @@ str_cli(FILE *fp, int sockfd)
 int
 main(int argc, char **argv)
 {
+    int i;
+    for (i = 0; i < MAX_CLIENTS; i++){
+        clients[i] = NULL;
+    }
 	int sockfd;
 	struct sockaddr_in servaddr;
 

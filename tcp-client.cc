@@ -1,6 +1,6 @@
 /**
  * Title: tcp-client.cpp
- * Author: Kixo
+ * Author: Weir
  * About: Interact with socket server. Send messages and receive messages from other clients.
  * For: CSE 434. Socket Project
  * Date: 2/5/2018

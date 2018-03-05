@@ -1,6 +1,6 @@
 /**
  * Title: tcp-server.cpp
- * Author: Kixo
+ * Author: Weir
  * About: Example socket. relays messages between clients.
  * For: CSE 434. Socket project.
  * Date: 2/5/2018
@@ -29,7 +29,7 @@ using namespace std;
 #define BACKLOG	128
 #define DATA_LENGTH 1015
 
-enum headings {nothing, query, regist, deregist, buy};
+enum headings {nothing, query, regist, deregist, buy, transaction_type};
 
 
 typedef struct SERVER_MESSAGE {
@@ -189,6 +189,38 @@ void register_miner(server_message *message, CLIENT *client){//send out a query 
             registered_clients++;
         }
     }
+    string s = "";
+    cout << "hey the header is a query\n";
+    char info[DATA_LENGTH];
+    temp = client_list;
+    s = s + to_string(registered_clients);
+    s.append("\n");
+    while (temp != NULL){
+            //cout << "does this once\n";
+        s += temp->username + " ";
+        s += temp->ip_address + " ";
+        s += to_string(temp->port) + " ";
+        s += to_string(temp->coins) + " ";
+        s += "\n";
+        temp = temp->next;
+    }
+    server_message *out_message = new server_message;
+    strcpy(out_message->data, s.c_str());
+    out_message->data[DATA_LENGTH-1] = 0;
+    out_message->header = query;
+        //cout << out_message->data << endl;
+    int i;
+    for (i = 0; i < MAX_CLIENTS; i++){
+        if (clients[i] != NULL and clients[i]->sockfd != 0 and clients[i]->sockfd != client->sockfd)
+        {
+            if (send(client->sockfd, out_message, 1024, 0) == 0)
+            {
+                cout << "Error sending message to a fat client\n";
+                exit(1);
+            }
+        }
+    }
+    return;
 
 }
 /*
@@ -234,6 +266,64 @@ void handleMessage(server_message *message, CLIENT *client){
         cout << "hey the header is a deregister\n";
         deregister_username(message, client);
         return;
+    } if (message->header == buy){
+        stringstream ss;
+        ss << message->data;
+        string buffer, from_user, to_user;
+        ss >> buffer;
+        ss >> from_user;
+        ss >> to_user;
+        int amount;
+        ss >> buffer;
+        amount = stoi(buffer);
+        CLIENT *from = client_list;
+        CLIENT *to = client_list;
+        while (from != NULL){
+            if (from->username.compare(from_user) == 0){
+                break;
+            }
+            from = from->next;
+        }
+        while (to != NULL){
+            if (to->username.compare(to_user) == 0){
+                break;
+            }
+            to = to->next;
+        }
+        CLIENT *temp = client_list;
+        from->coins -= amount;
+        to->coins += amount;
+        temp = client_list;
+        string s = "";
+        s = s + to_string(registered_clients);
+        s.append("\n");
+        while (temp != NULL){
+                //cout << "does this once\n";
+            s += temp->username + " ";
+            s += temp->ip_address + " ";
+            s += to_string(temp->port) + " ";
+            s += to_string(temp->coins) + " ";
+            s += "\n";
+            temp = temp->next;
+        }
+        server_message *out_message = new server_message;
+        strcpy(out_message->data, s.c_str());
+        out_message->data[DATA_LENGTH-1] = 0;
+        out_message->header = query;
+            //cout << out_message->data << endl;
+        int i;
+        for (i = 0; i < MAX_CLIENTS; i++){
+            if (clients[i] != NULL and clients[i]->sockfd != 0 and clients[i]->sockfd != client->sockfd)
+            {
+                if (send(client->sockfd, out_message, 1024, 0) == 0)
+                {
+                    cout << "Error sending message to a fat client\n";
+                    exit(1);
+                }
+            }
+        }
+        return;
+
     }
     for (i = 0; i < MAX_CLIENTS; i++){
         if (clients[i] != NULL and clients[i]->sockfd != 0 and clients[i]->sockfd != client->sockfd)

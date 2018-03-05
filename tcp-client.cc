@@ -92,6 +92,13 @@ void waitForServer(){
         if (strncmp(out_message, "query", strlen("query")) == 0){
             message->header = query;
         }
+        if (strncmp(out_message, "register", strlen("register")) == 0){
+            message->header = regist;
+        }
+        if (strncmp(out_message, "deregister", strlen("deregister")) == 0){
+            //cout << "lmao whats the problem\n";
+            message->header = deregist;
+        }
         if (send(server, (void *)message, 1024, 0) == 0)
         {
             cout << "idk what this error even is\n";

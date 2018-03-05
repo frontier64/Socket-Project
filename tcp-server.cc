@@ -55,6 +55,7 @@ typedef struct _CLIENT {
 
 CLIENT* clients[MAX_CLIENTS];
 int num_clients = 0;
+int registered_clients = 0;
 int master_socket;
 int current_id = 0;
 
@@ -78,7 +79,7 @@ void initialize_server(string file){
     int port_number, coins, id;
     CLIENT* new_client, *temp;
     temp = client_list;
-    num_clients = clients;
+    registered_clients = clients;
     for (i = 0; i < clients; i++){
         my_file >> username; my_file >> ip_address; my_file >> port_number; my_file >> coins; my_file >> id;
         new_client = new CLIENT;
@@ -110,7 +111,7 @@ void save_server(string file_string){
     CLIENT *temp;
     cout << client_list << endl;
     temp = client_list;
-    file << num_clients << endl;
+    file << registered_clients << endl;
     while (temp != NULL){
         file << temp->username << " ";
         file << temp->ip_address << " ";
@@ -122,10 +123,17 @@ void save_server(string file_string){
     file.close();
 }
 
-void deregister_username(string username){
+void deregister_username(server_message *message, CLIENT *client){
+    string username;
+    stringstream ss;
+    ss << message->data;
+    ss >> username;         //deregister
+    ss >> username;         //username
     CLIENT *temp = client_list, *temp2;
     if (temp->username.compare(username) == 0){
+        temp->username = "";
         client_list = NULL;
+        registered_clients--;
         return;
     }
 
@@ -133,8 +141,8 @@ void deregister_username(string username){
         if (temp->next->username.compare(username) == 0){
             temp2 = temp->next;
             temp->next = temp->next->next;
-            free(temp2);
-            num_clients--;
+            temp2->username = "";
+            registered_clients--;
         }
     }
 
@@ -150,6 +158,35 @@ void register_miner(server_message *message, CLIENT *client){
     while (temp != NULL){
         if (buffer.compare(temp->username) == 0){
             temp->sockfd = client->sockfd;
+            break;
+        }
+        temp = temp->next;
+    }
+    if (temp == NULL){
+        if (client_list == NULL){
+            client->username = buffer;
+            ss >> buffer;
+            client->ip_address = buffer;
+            ss >> buffer;
+            client->port = stoi(buffer);
+            ss >> buffer;
+            client->coins = stoi(buffer);
+            client_list = client;
+            client_list->next = NULL;
+            registered_clients++;
+        } else {
+            temp = client_list;
+            while (temp->next != NULL){temp = temp->next;};
+            client->username = buffer;
+            ss >> buffer;
+            client->ip_address = buffer;
+            ss >> buffer;
+            client->port = stoi(buffer);
+            ss >> buffer;
+            client->coins = stoi(buffer);
+            client->next = NULL;
+            temp->next = client;
+            registered_clients++;
         }
     }
 
@@ -161,15 +198,17 @@ void handleMessage(server_message *message, CLIENT *client){
     int i;
     //cout << message->data;
     server_message *out_message = new server_message;
+
+//if the message is a query
     if (message->header == query){
         string s = "";
         cout << "hey the header is a query\n";
         char info[DATA_LENGTH];
         CLIENT *temp = client_list;
-        s = s + to_string(num_clients);
+        s = s + to_string(registered_clients);
         s.append("\n");
         while (temp != NULL){
-            cout << "does this once\n";
+            //cout << "does this once\n";
             s += temp->username + " ";
             s += temp->ip_address + " ";
             s += to_string(temp->port) + " ";
@@ -179,8 +218,20 @@ void handleMessage(server_message *message, CLIENT *client){
         }
         strcpy(out_message->data, s.c_str());
         out_message->data[DATA_LENGTH-1] = 0;
-        cout << out_message->data << endl;
+        //cout << out_message->data << endl;
         send(client->sockfd, out_message, 1024, 0);
+        return;
+    }
+
+//if the message is a register
+    if (message->header == regist){
+        cout << "hey the header is a register\n";
+        register_miner(message, client);
+        return;
+    }
+    if (message->header == deregist){
+        cout << "hey the header is a deregister\n";
+        deregister_username(message, client);
         return;
     }
     for (i = 0; i < MAX_CLIENTS; i++){

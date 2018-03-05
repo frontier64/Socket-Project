@@ -29,7 +29,7 @@ using namespace std;
 #define BACKLOG	128
 #define DATA_LENGTH 1015
 
-enum headings {nothing, query, regist, deregist};
+enum headings {nothing, query, regist, deregist, buy};
 
 
 typedef struct SERVER_MESSAGE {
@@ -218,6 +218,7 @@ void handleMessage(server_message *message, CLIENT *client){
         }
         strcpy(out_message->data, s.c_str());
         out_message->data[DATA_LENGTH-1] = 0;
+        out_message->header = query;
         //cout << out_message->data << endl;
         send(client->sockfd, out_message, 1024, 0);
         return;

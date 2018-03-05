@@ -38,6 +38,10 @@ void handleMessage(server_message *message){
         char *rest = message + 4;
         cout << rest;
     }*/
+
+    if (message->header == query){          //oh boy we gon have to add all the new clients nao what a RUSH.
+
+    }
     cout << message->data;
 }
 
@@ -149,7 +153,7 @@ main(int argc, char **argv)
 
 	bzero(&servaddr, sizeof(servaddr));
 	servaddr.sin_family = AF_INET;
-	servaddr.sin_port = htons(atoi(argv[2]));
+	servaddr.sin_port = htons(atoi(argv[2]));                  //port is arg[2], ip address is argv[1]
 	inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
 
 	connect(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));

@@ -148,7 +148,7 @@ void deregister_username(server_message *message, CLIENT *client){
 
 }   
 
-void register_miner(server_message *message, CLIENT *client){
+void register_miner(server_message *message, CLIENT *client){//send out a query message to all miners
     stringstream ss;
     ss << message->data;
     string buffer;

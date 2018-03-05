@@ -15,29 +15,30 @@
 #include        <unistd.h>
 #include        <iostream>
 
-#define ECHOMAX 1025                     /* Longest string to echo */
+#define ECHOMAX 1015                     /* Longest string to echo */
 #define BACKLOG 128
+#define DATA_LENGTH 1015
+
 
 using namespace std;
 
+
+enum headings {nothing, query, regist, deregist};
+
 typedef struct SERVER_MESSAGE {
     int message_len;
+    int clock_value;
     char header;
-    char[1018] data;
-
+    char data[1015];
 } server_message;
 
-typedef struct MINER_MESSAGE {
-    
-}
 
-void handleMessage(char* message){
-    if (strncmp(message, "TEST", 4) == 0){       //if its a test
+void handleMessage(server_message *message){
+    /*if (strncmp(message, "TEST", 4) == 0){       //if its a test
         char *rest = message + 4;
         cout << rest;
-    } else {
-        cout << message;
-    }
+    }*/
+    cout << message->data;
 }
 
 int server;
@@ -66,8 +67,8 @@ void waitForServer(){
 
     if (FD_ISSET(server, &fds))         //The server is sending us a message oh boy!
     {
-        char inc_message[ECHOMAX];
-        inc_message[ECHOMAX-1] = 0;
+        server_message *inc_message = new server_message;;
+        inc_message->data[DATA_LENGTH-1] = 0;
         int rc;
         if ((rc = read(server, inc_message, 1024)) == 0)            //JK the server left us all alone :(
         {
@@ -76,18 +77,22 @@ void waitForServer(){
             exit(0);
         } else                      //Handle the message from the server!              
         {   
-            inc_message[rc] = 0;
-            cout << inc_message;
+            handleMessage(inc_message);
         }
     }
 
-    if (FD_ISSET(STDIN_FILENO, &fds))
+    if (FD_ISSET(STDIN_FILENO, &fds))                   //Some interaction from the bro at the keyboard
     {
+        server_message *message = new server_message;
         char out_message[ECHOMAX];
         out_message[ECHOMAX-1] = 0;
-        fgets(out_message, ECHOMAX, stdin);
 
-        if (send(server, out_message, strlen(out_message), 0) == 0)
+        fgets(out_message, ECHOMAX, stdin);
+        strcpy(message->data,out_message);
+        if (strncmp(out_message, "query", strlen("query")) == 0){
+            message->header = query;
+        }
+        if (send(server, (void *)message, 1024, 0) == 0)
         {
             cout << "idk what this error even is\n";
             close(server);

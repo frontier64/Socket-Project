@@ -20,20 +20,23 @@ TODO: implement message relaying between multiple clients.
 #include    <iostream>
 #include    <fstream>
 #include    <string>
+#include    <sstream>
 
 using namespace std;
 
 #define MAX_CLIENTS 30
 #define	ECHOMAX	1025		/* Longest string to echo */
 #define BACKLOG	128
+#define DATA_LENGTH 1015
 
+enum headings {nothing, query, regist, deregist};
 
 
 typedef struct SERVER_MESSAGE {
     int message_len;
     int clock_value;
     char header;
-    char data[1014];
+    char data[DATA_LENGTH];
 
 } server_message;
 
@@ -137,14 +140,53 @@ void deregister_username(string username){
 
 }   
 
+void register_miner(server_message *message, CLIENT *client){
+    stringstream ss;
+    ss << message->data;
+    string buffer;
+    ss >> buffer;           //register
+    ss >> buffer;           //username;
+    CLIENT *temp = client_list;
+    while (temp != NULL){
+        if (buffer.compare(temp->username) == 0){
+            temp->sockfd = client->sockfd;
+        }
+    }
 
-void handleMessage(char message[1025], CLIENT *client){
+}
+/*
+ * handle all messages
+ */
+void handleMessage(server_message *message, CLIENT *client){
     int i;
-
+    //cout << message->data;
+    server_message *out_message = new server_message;
+    if (message->header == query){
+        string s = "";
+        cout << "hey the header is a query\n";
+        char info[DATA_LENGTH];
+        CLIENT *temp = client_list;
+        s = s + to_string(num_clients);
+        s.append("\n");
+        while (temp != NULL){
+            cout << "does this once\n";
+            s += temp->username + " ";
+            s += temp->ip_address + " ";
+            s += to_string(temp->port) + " ";
+            s += to_string(temp->coins) + " ";
+            s += "\n";
+            temp = temp->next;
+        }
+        strcpy(out_message->data, s.c_str());
+        out_message->data[DATA_LENGTH-1] = 0;
+        cout << out_message->data << endl;
+        send(client->sockfd, out_message, 1024, 0);
+        return;
+    }
     for (i = 0; i < MAX_CLIENTS; i++){
         if (clients[i] != NULL and clients[i]->sockfd != 0 and clients[i]->sockfd != client->sockfd)
         {
-            if (send(clients[i]->sockfd, message, strlen(message), 0) == 0)
+            if (send(clients[i]->sockfd, message, 1024, 0) == 0)
             {
                 cout << "Error sending message to a fat client\n";
                 exit(1);
@@ -199,32 +241,30 @@ void waitForClient(){
             if (clients[i] == NULL)
             {
                 CLIENT *new_client = new CLIENT;
-                new_client->username = current_id++;
+                new_client->id = current_id++;
                 new_client->sockfd = new_socket;
                 clients[i] = new_client;
                 break;
             }
         }
         num_clients++;
-        cout << "New client id: " << clients[i]->username << endl;
+        cout << "New client id: " << clients[i]->id << endl;
     }
     for (i = 0; i < MAX_CLIENTS; i++)           //If there is some interaction from a client.
     {   
         if (clients[i] != NULL and FD_ISSET(clients[i]->sockfd, &fds))
         {
-            char inc_message[1025];
-            inc_message[1024] = 0;
+            server_message *message = new server_message;
             int rc;
-            if ((rc = read(clients[i]->sockfd, inc_message, 1024)) == 0)        //Client has a fat cock and disconnected.
+            if ((rc = read(clients[i]->sockfd, message, 1024)) == 0)        //Client has a fat cock and disconnected.
             {
-                cout << "Client disconnected: " << clients[i]->username << endl;
+                cout << "Client disconnected: " << clients[i]->id << endl;
                 close(clients[i]->sockfd);
                 clients[i] = NULL;                      //Think this is a memory leak. idgaf lmao
                 num_clients--;
             } else                      //Client has a fat message for us.
             {
-                inc_message[rc] = 0;
-                handleMessage(inc_message, clients[i]);
+                handleMessage(message, clients[i]);
             }
         }
     } 
@@ -256,11 +296,13 @@ EchoString(int sockfd)
 int
 main(int argc, char **argv)
 {
+    /*
     string lmao = "file.txt";
     initialize_server("file.txt");
     deregister_username("sharon");
     save_server("new_file.txt");
     exit(0);
+    */
     int sock, connfd;                /* Socket */
     struct sockaddr_in echoServAddr; /* Local address */
     struct sockaddr_in echoClntAddr; /* Client address */
@@ -269,12 +311,14 @@ main(int argc, char **argv)
     unsigned short echoServPort;     /* Server port */
     int recvMsgSize;                 /* Size of received message */
 
-    if (argc != 2)         /* Test for correct number of parameters */
+    if (false)         /* Test for correct number of parameters */
     {
         fprintf(stderr,"Usage: %s <TDP SERVER PORT>\n", argv[0]);
         exit(1);
     }
-
+    if (argc == 3){
+        initialize_server(argv[2]);
+    }
     echoServPort = atoi(argv[1]);  /* First arg:  local port */
 
     /* Create socket for sending/receiving datagrams */
